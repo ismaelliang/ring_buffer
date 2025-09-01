@@ -7,15 +7,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Debug build flags - for development and debugging
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -DDEBUG -Wall -Wextra -Wpedantic")
 
-# High-performance optimization flags for low-latency scenarios
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -mtune=native -DNDEBUG -flto -ffast-math")
+# High-performance optimization flags for production scenarios
+set(CMAKE_CXX_FLAGS_PROD "-O3 -march=native -mtune=native -DNDEBUG -flto -ffast-math -funroll-loops")
 
-# Optional: Ultra-fast build type for maximum performance
-set(CMAKE_CXX_FLAGS_ULTRAFAST "-O3 -march=native -mtune=native -DNDEBUG -flto -ffast-math -funroll-loops")
-
-# Set build type to Release by default for optimized builds
+# Set build type to PROD by default for optimized builds
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release)
+    set(CMAKE_BUILD_TYPE PROD)
 endif()
 
 # Enable Link Time Optimization (LTO) for better performance
@@ -27,23 +24,12 @@ find_library(RT_LIBRARY rt REQUIRED)
 # Find pthread package
 find_package(Threads REQUIRED)
 
-# Create ring buffer library
-add_library(ring_buffer
-    src/ring_buffer.cpp
-    include/ring_buffer.h
-    include/message_types.h
-    include/message_queue.h
-    src/message_queue.cpp
-)
-
-target_include_directories(ring_buffer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-
-target_link_libraries(ring_buffer PRIVATE ${RT_LIBRARY} Threads::Threads)
-
 # Create producer executable
-add_executable(producer src/producer.cpp)
-target_link_libraries(producer PRIVATE ring_buffer ${RT_LIBRARY} Threads::Threads)
+add_executable(producer demo/producer.cpp)
+target_include_directories(producer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/demo)
+target_link_libraries(producer PRIVATE ${RT_LIBRARY} Threads::Threads)
 
 # Create consumer executable
-add_executable(consumer src/consumer.cpp)
-target_link_libraries(consumer PRIVATE ring_buffer ${RT_LIBRARY} Threads::Threads)
+add_executable(consumer demo/consumer.cpp)
+target_include_directories(consumer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/demo)
+target_link_libraries(consumer PRIVATE ${RT_LIBRARY} Threads::Threads)

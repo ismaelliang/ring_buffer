@@ -31,28 +31,18 @@ make -j$(nproc)
 - 禁用优化便于调试
 - 启用所有编译警告
 
-### Release构建 (生产环境)
+### PROD构建 (生产环境与极致性能)
 ```bash
-mkdir build-release && cd build-release
-cmake -DCMAKE_BUILD_TYPE=Release ..
+mkdir build-prod && cd build-prod
+cmake -DCMAKE_BUILD_TYPE=PROD ..
 make -j$(nproc)
 ```
-**编译选项**: `-O3 -march=native -mtune=native -DNDEBUG -flto -ffast-math`
+**编译选项**: `-O3 -march=native -mtune=native -DNDEBUG -flto -ffast-math -funroll-loops`
 - 最高级别优化(-O3)
 - 针对当前CPU架构优化
 - 链接时优化(LTO)
 - 快速数学运算
-
-### ULTRAFAST构建 (极致性能)
-```bash
-mkdir build-ultrafast && cd build-ultrafast
-cmake -DCMAKE_BUILD_TYPE=ULTRAFAST ..
-make -j$(nproc)
-```
-**编译选项**: Release选项 + `-funroll-loops`
-- 循环展开优化
-- 减少分支跳转
-- 提升指令级并行度
+- 循环展开优化，减少分支跳转，提升指令级并行度
 
 ## 运行方式
 
@@ -87,10 +77,9 @@ sudo taskset -c 1 ./consumer &   # 消费者绑定核心1
 | 构建类型 | 典型延迟 | 最佳延迟 | 最差延迟 | 适用场景 |
 |---------|---------|---------|---------|----------|
 | Debug | 10-50μs | 5μs | 100μs | 开发调试 |
-| Release | 1-5μs | 0.5μs | 20μs | 生产环境 |
-| ULTRAFAST | 0.4-3μs | 389ns | 10μs | HFT交易 |
+| PROD | 0.4-3μs | 389ns | 10μs | 生产环境 / HFT交易 |
 
-### 实测数据 (ULTRAFAST构建)
+### 实测数据 (PROD构建)
 ```
 Received: AAPL Price: 182.78 Volume: 1216 Latency: 389ns (0.39μs)
 Received: AAPL Price: 182.79 Volume: 1217 Latency: 1170ns (1.17μs)
@@ -100,10 +89,11 @@ Received: AAPL Price: 182.80 Volume: 1218 Latency: 4535ns (4.54μs)
 ## 架构设计
 
 ### 组件说明
-- **ring_buffer.h/cpp**: 无锁环形队列核心实现
-- **producer.cpp**: 数据生产者，模拟市场数据生成
-- **consumer.cpp**: 数据消费者，计算端到端延迟
-- **cpu_affinity.h**: CPU亲和性绑定工具
+- **message_queue.h**: 无锁环形队列核心实现与消息结构定义
+- **market_data.h**: 市场数据结构定义，用于示例应用
+- **demo/producer.cpp**: 市场数据生产者，模拟市场数据生成并发布到队列
+- **demo/consumer.cpp**: 市场数据消费者，从队列订阅数据并计算端到端延迟
+- **cpu_affinity.h**: CPU亲和性绑定工具，用于优化高性能应用
 
 ### 数据流
 ```
@@ -176,14 +166,3 @@ echo 0 | sudo tee /proc/sys/kernel/timer_migration
 1. **延迟过高**: 检查系统负载和其他进程干扰
 2. **吞吐量不足**: 调整环形队列大小
 3. **CPU使用率高**: 考虑使用混合轮询策略
-
-## 许可证
-
-本项目采用MIT许可证，详见LICENSE文件。
-
-## 贡献指南
-
-欢迎提交Pull Request和Issue。请确保：
-1. 代码符合项目风格
-2. 包含必要的测试
-3. 更新相关文档
