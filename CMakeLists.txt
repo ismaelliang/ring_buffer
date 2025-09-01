@@ -34,16 +34,6 @@ add_library(ring_buffer
 )
 target_link_libraries(ring_buffer PRIVATE ${RT_LIBRARY} Threads::Threads)
 
-# Create shared ring buffer library with C interface for Python
-add_library(ring_buffer_shared SHARED
-    ring_buffer.cpp
-    ring_buffer.h
-    ring_buffer_c.cpp
-    ring_buffer_c.h
-)
-target_link_libraries(ring_buffer_shared PRIVATE ${RT_LIBRARY} Threads::Threads)
-set_target_properties(ring_buffer_shared PROPERTIES OUTPUT_NAME "ring_buffer")
-
 # Create producer executable
 add_executable(producer producer.cpp)
 target_link_libraries(producer PRIVATE ring_buffer ${RT_LIBRARY} Threads::Threads)
