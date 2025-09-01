@@ -29,6 +29,9 @@ public:
     bool pop(void* data);
     bool empty() const;
     bool full() const;
+
+    uint32_t capacity() const; // Returns the total number of elements the buffer can hold
+    uint32_t current_size() const; // Returns the current number of elements in the buffer
     
 private:
     void* buffer_;

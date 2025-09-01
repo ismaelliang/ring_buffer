@@ -29,15 +29,21 @@ find_package(Threads REQUIRED)
 
 # Create ring buffer library
 add_library(ring_buffer
-    ring_buffer.cpp
-    ring_buffer.h
+    src/ring_buffer.cpp
+    include/ring_buffer.h
+    include/message_types.h
+    include/message_queue.h
+    src/message_queue.cpp
 )
+
+target_include_directories(ring_buffer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
 target_link_libraries(ring_buffer PRIVATE ${RT_LIBRARY} Threads::Threads)
 
 # Create producer executable
-add_executable(producer producer.cpp)
+add_executable(producer src/producer.cpp)
 target_link_libraries(producer PRIVATE ring_buffer ${RT_LIBRARY} Threads::Threads)
 
 # Create consumer executable
-add_executable(consumer consumer.cpp)
+add_executable(consumer src/consumer.cpp)
 target_link_libraries(consumer PRIVATE ring_buffer ${RT_LIBRARY} Threads::Threads)

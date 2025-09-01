@@ -1,4 +1,4 @@
-#include "ring_buffer.h"
+#include "message_queue.h"
 #include "cpu_affinity.h"
 #include <iostream>
 #include <thread>
@@ -15,7 +15,7 @@ struct MarketData {
     char symbol[16];
     double price;
     int volume;
-    long timestamp;
+    long timestamp; // This timestamp will be overwritten by MessageQueue's internal timestamp
 };
 #pragma pack(pop)
 
@@ -26,10 +26,11 @@ int main() {
         CPUAffinity::bindToCPU(0);
         
         // 尝试设置实时优先级 (需要root权限)
-        CPUAffinity::setRealtimePriority(90);
+        // CPUAffinity::setRealtimePriority(90);
         
-        // Create ring buffer
-        MmapRingBuffer buffer("/market_data_queue", 1024, sizeof(MarketData));
+        // Create message queue
+        // Name, capacity (number of messages), max_payload_size
+        MessageQueue queue("/market_data_queue", 1024, sizeof(MarketData));
         
         // Simulate market data feed
         MarketData data;
@@ -41,18 +42,15 @@ int main() {
             data.price = 182.72 + (counter % 10) * 0.01;  // Simulate price changes
             data.volume = 1000 + (counter % 500);
             
-            // 使用高精度时钟设置时间戳
-            data.timestamp = getHighResolutionTimestamp();
-            
-            // Try to push data to ring buffer
-            if (buffer.push(&data)) {
+            // Publish data to message queue
+            if (queue.publish(MessageType::MARKET_DATA, &data, sizeof(MarketData))) {
                 std::cout << "Produced: " << data.symbol 
                          << " Price: " << data.price
                          << " Volume: " << data.volume 
-                         << " Timestamp: " << data.timestamp << std::endl;
+                         << " Timestamp: (handled by MessageQueue)" << std::endl; // Timestamp is now handled by MessageQueue
                 counter++;
             } else {
-                std::cout << "Buffer full, waiting..." << std::endl;
+                std::cout << "Queue full, waiting..." << std::endl;
             }
             
             // 减少睡眠时间以获得更高频率的数据产生
