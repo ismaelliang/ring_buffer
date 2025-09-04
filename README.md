@@ -16,6 +16,31 @@
 - **编译优化**: 多级优化方案支持不同使用场景
 - **内存对齐**: 避免false sharing
 
+## 依赖管理
+
+本项目使用 vcpkg 管理依赖项，包括 Google Test 测试框架。
+
+### 安装 vcpkg
+
+1. 克隆 vcpkg 仓库：
+```bash
+git clone https://github.com/Microsoft/vcpkg.git
+cd vcpkg
+./bootstrap-vcpkg.sh
+```
+
+2. 设置环境变量：
+```bash
+export VCPKG_ROOT=/path/to/vcpkg
+export PATH=$VCPKG_ROOT:$PATH
+```
+
+3. 安装项目依赖：
+```bash
+# 在项目根目录执行
+vcpkg install
+```
+
 ## 构建系统
 
 本项目使用CMake构建系统，支持三种优化级别：
@@ -70,6 +95,31 @@ sudo chrt -f 95 ./producer
 sudo taskset -c 0 ./producer &   # 生产者绑定核心0
 sudo taskset -c 1 ./consumer &   # 消费者绑定核心1
 ```
+
+## 测试
+
+项目使用 Google Test 框架进行单元测试。
+
+### 构建和运行测试
+```bash
+# 确保已安装 vcpkg 和依赖项
+mkdir build && cd build
+cmake -DCMAKE_BUILD_TYPE=Debug ..
+make -j$(nproc)
+
+# 运行所有测试
+make test
+
+# 或者直接运行测试可执行文件
+./header_compatibility_test
+```
+
+### 测试覆盖范围
+- 头部兼容性检查
+- 共享内存重用逻辑
+- 强制重建功能
+- 不同参数的兼容性验证
+- MmapRingBuffer 和 MessageQueue 的一致性测试
 
 ## 性能基准
 

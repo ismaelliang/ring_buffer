@@ -133,6 +133,7 @@
 #include <stdexcept>
 #include <string>
 #include <sys/mman.h> // Required for shm_open, mmap, munmap, PROT_*, MAP_*
+#include <sys/stat.h> // Required for fstat
 #include <unistd.h>   // Required for ftruncate, close
 #include <vector>     // Required for std::vector
 
@@ -253,19 +254,92 @@ struct alignas(64) RingBufferHeader {
 class MmapRingBuffer {
 public:
   /**
+   * @brief 检查现有共享内存的头部是否与预期参数匹配。
+   * @param name 共享内存的唯一标识符。
+   * @param element_count 期望的元素数量。
+   * @param element_size 期望的元素大小。
+   * @param num_consumers 期望的消费者数量。
+   * @return 如果头部匹配，则返回 true；否则返回 false。
+   */
+  static bool isHeaderCompatible(const char* name, uint32_t element_count,
+                                uint32_t element_size, uint32_t num_consumers) {
+    // 尝试打开现有的共享内存
+    int fd = shm_open(name, O_RDONLY, 0666);
+    if (fd == -1) {
+      // 共享内存不存在，需要创建新的
+      return false;
+    }
+
+    // 计算期望的头部大小和总大小
+    size_t expected_header_size = sizeof(RingBufferHeader) + 
+                                  (num_consumers - 1) * sizeof(RingBufferHeader::ConsumerTail);
+    size_t expected_total_size = expected_header_size + element_count * element_size;
+
+    // 获取现有共享内存的大小
+    struct stat shm_stat;
+    if (fstat(fd, &shm_stat) == -1) {
+      close(fd);
+      return false;
+    }
+
+    // 如果大小不匹配，直接返回 false
+    if (static_cast<size_t>(shm_stat.st_size) != expected_total_size) {
+      close(fd);
+      return false;
+    }
+
+    // 映射内存以读取头部信息
+    void* buffer = mmap(NULL, expected_header_size, PROT_READ, MAP_SHARED, fd, 0);
+    if (buffer == MAP_FAILED) {
+      close(fd);
+      return false;
+    }
+
+    RingBufferHeader* header = static_cast<RingBufferHeader*>(buffer);
+    
+    // 检查头部字段是否匹配
+    bool is_compatible = (header->size == element_count) &&
+                        (header->element_size == element_size) &&
+                        (header->num_consumers == num_consumers);
+
+    // 清理资源
+    munmap(buffer, expected_header_size);
+    close(fd);
+
+    return is_compatible;
+  }
+
+  /**
    * @brief 构造函数，创建或连接到一个命名的环形缓冲区。
    * @param name 共享内存的唯一标识符。
    * @param element_count 缓冲区中元素的总数量。
    * @param element_size 每个元素的大小（字节）。
+   * @param num_consumers 消费者数量。
+   * @param force_recreate 如果为 true，强制重新创建共享内存；如果为 false，在头部兼容时重用现有共享内存。
    */
   MmapRingBuffer(const char *name, uint32_t element_count,
-                 uint32_t element_size, uint32_t num_consumers)
+                 uint32_t element_size, uint32_t num_consumers, 
+                 bool force_recreate = false)
       : name_(name), num_consumers_(num_consumers) {
     std::cout << "MmapRingBuffer: Creating/attaching to buffer: " << name
               << std::endl;
     std::cout << "  element_count: " << element_count
               << ", element_size: " << element_size << std::endl;
     std::cout << "  num_consumers: " << num_consumers << std::endl;
+    std::cout << "  force_recreate: " << force_recreate << std::endl;
+
+    // 检查现有共享内存是否与当前参数兼容
+    bool header_compatible = false;
+    if (!force_recreate) {
+      header_compatible = isHeaderCompatible(name_, element_count, element_size, num_consumers);
+      std::cout << "  Header compatibility check result: " << header_compatible << std::endl;
+    }
+
+    // 如果需要强制重新创建或头部不兼容，则先删除现有共享内存
+    if (force_recreate || !header_compatible) {
+      std::cout << "  Unlinking existing shared memory (if any)..." << std::endl;
+      shm_unlink(name_);  // 忽略错误，因为共享内存可能不存在
+    }
 
     // 计算所需的总大小。
     // RingBufferHeader 的实际大小，包括了灵活数组成员 consumer_tails
@@ -275,7 +349,7 @@ public:
     total_size_ = header_actual_size + element_count * element_size;
     std::cout << "  Calculated total_size_: " << total_size_ << std::endl;
 
-    // 创建共享内存。
+    // 创建或打开共享内存。
     fd_ = shm_open(name_, O_CREAT | O_RDWR, 0666);
     if (fd_ == -1) {
       throw std::runtime_error(std::string("shm_open failed: ") +
@@ -486,6 +560,63 @@ public:
 class MessageQueue {
 public:
   /**
+   * @brief 检查现有共享内存的头部是否与预期参数匹配。
+   * @param name 共享内存队列的唯一标识符。
+   * @param queue_capacity 期望的队列容量。
+   * @param max_payload_size 期望的最大有效载荷大小。
+   * @param num_consumers 期望的消费者数量。
+   * @return 如果头部匹配，则返回 true；否则返回 false。
+   */
+  static bool isHeaderCompatible(const std::string &name, uint32_t queue_capacity,
+                                uint32_t max_payload_size, uint32_t num_consumers) {
+    // 尝试打开现有的共享内存
+    int fd = shm_open(name.c_str(), O_RDONLY, 0666);
+    if (fd == -1) {
+      // 共享内存不存在，需要创建新的
+      return false;
+    }
+
+    // 计算期望的元素大小和总大小
+    uint32_t expected_element_size = sizeof(MessageHeader) + max_payload_size;
+    size_t expected_header_size = sizeof(RingBufferHeader) + 
+                                  (num_consumers - 1) * sizeof(RingBufferHeader::ConsumerTail);
+    size_t expected_total_size = expected_header_size + queue_capacity * expected_element_size;
+
+    // 获取现有共享内存的大小
+    struct stat shm_stat;
+    if (fstat(fd, &shm_stat) == -1) {
+      close(fd);
+      return false;
+    }
+
+    // 如果大小不匹配，直接返回 false
+    if (static_cast<size_t>(shm_stat.st_size) != expected_total_size) {
+      close(fd);
+      return false;
+    }
+
+    // 映射内存以读取头部信息
+    void* buffer = mmap(NULL, expected_header_size, PROT_READ, MAP_SHARED, fd, 0);
+    if (buffer == MAP_FAILED) {
+      close(fd);
+      return false;
+    }
+
+    RingBufferHeader* header = static_cast<RingBufferHeader*>(buffer);
+    
+    // 检查头部字段是否匹配
+    bool is_compatible = (header->size == queue_capacity) &&
+                        (header->element_size == expected_element_size) &&
+                        (header->num_consumers == num_consumers);
+
+    // 清理资源
+    munmap(buffer, expected_header_size);
+    close(fd);
+
+    return is_compatible;
+  }
+
+  /**
    * @brief 构造函数，用于创建或连接到命名的消息队列。
    * @param name 共享内存队列的唯一标识符。
    * @param queue_capacity 队列可以容纳的 *消息* 最大数量（非字节）。
@@ -493,13 +624,15 @@ public:
    *                         底层环形缓冲区中实际的元素大小将是
    * `sizeof(MessageHeader) + max_payload_size`。
    * @param num_consumers 消费者数量。
+   * @param force_recreate 如果为 true，强制重新创建共享内存；如果为 false，在头部兼容时重用现有共享内存。
    */
   MessageQueue(const std::string &name, uint32_t queue_capacity,
-               uint32_t max_payload_size, uint32_t num_consumers)
+               uint32_t max_payload_size, uint32_t num_consumers, 
+               bool force_recreate = false)
       : max_payload_size_(max_payload_size),
         total_message_size_(sizeof(MessageHeader) + max_payload_size),
         buffer_(name.c_str(), queue_capacity, total_message_size_,
-                num_consumers), // Pass num_consumers
+                num_consumers, force_recreate), // Pass num_consumers and force_recreate
         next_sequence_num_(0),
         num_consumers_(num_consumers) ///< 在此处初始化 `buffer_`。
   {

@@ -1,0 +1,10 @@
+{
+  "name": "lockfreering-buffer",
+  "version": "1.0.0",
+  "description": "Lock-free ring buffer implementation with Google Test integration",
+  "dependencies": [
+    "gtest",
+    "fmt"
+  ],
+  "builtin-baseline": "2dc54dfc5af9fb973860a38e4245ae0063740988"
+}

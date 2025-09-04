@@ -1,4 +1,11 @@
 cmake_minimum_required(VERSION 3.10)
+
+# vcpkg integration - MUST be set before project()
+if(DEFINED ENV{VCPKG_ROOT})
+    set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+        CACHE STRING "Vcpkg toolchain file")
+endif()
+
 project(LockFreeRingBuffer)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -22,7 +29,14 @@ set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 find_library(RT_LIBRARY rt REQUIRED)
 
 # Find pthread package
+
 find_package(Threads REQUIRED)
+
+# Find Google Test package using CONFIG mode (vcpkg provides config files)
+find_package(GTest CONFIG QUIET)
+if(NOT GTest_FOUND)
+    find_package(GTest REQUIRED)
+endif()
 
 # Create producer executable
 add_executable(producer demo/producer.cpp)
@@ -38,3 +52,14 @@ target_link_libraries(consumer PRIVATE ${RT_LIBRARY} Threads::Threads)
 add_executable(check_header demo/check_header.cpp)
 target_include_directories(check_header PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/demo)
 target_link_libraries(check_header PRIVATE ${RT_LIBRARY} Threads::Threads)
+
+# Enable testing
+enable_testing()
+
+# Create test executable with Google Test
+add_executable(ringbuffer_tests test/test_ringbuffer.cpp)
+target_include_directories(ringbuffer_tests PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/demo)
+target_link_libraries(ringbuffer_tests PRIVATE ${RT_LIBRARY} Threads::Threads GTest::gtest GTest::gtest_main)
+
+# Add the test
+add_test(NAME RingBufferTests COMMAND ringbuffer_tests)
