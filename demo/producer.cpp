@@ -39,6 +39,11 @@ void print_usage(const char *program_name) {
  * @return 程序的退出状态码。
  */
 int main(int argc, char *argv[]) {
+    // Initialize fmtlog
+    fmtlog::setLogLevel(fmtlog::DBG);
+    fmtlog::setLogFile("producer.log"); // Log to producer.log
+    fmtlog::startPollingThread();
+    
     std::optional<long long> total_message_count; // Use long long for potentially large counts
     uint32_t num_consumers = 1;                   // Default to 1 consumer
 
@@ -79,7 +84,7 @@ int main(int argc, char *argv[]) {
         shm_unlink("/market_data_queue");
 
         // 绑定到CPU核心0 (生产者)
-        std::cout << "Available CPU cores: " << CPUAffinity::getCPUCount() << std::endl;
+        MQ_ILOG("Available CPU cores: {}", CPUAffinity::getCPUCount());
         CPUAffinity::bindToCPU(0);
 
         // 尝试设置实时优先级 (需要root权限)
@@ -99,7 +104,7 @@ int main(int argc, char *argv[]) {
 
         while (true) {
             if (total_message_count.has_value() && messages_produced >= total_message_count.value()) {
-                std::cout << "Produced " << messages_produced << " messages. Exiting." << std::endl;
+                MQ_ILOG("Produced {} messages. Exiting.", messages_produced);
                 break;
             }
             // Prepare sample data
@@ -109,22 +114,25 @@ int main(int argc, char *argv[]) {
 
             // Produce data to message queue
             if (queue.produce(MessageType::MARKET_DATA, &data, sizeof(MarketData))) {
-                std::cout << "Produced: " << data.symbol << " Price: " << data.price << " Volume: " << data.volume
-                          << " Timestamp: (handled by MessageQueue)"
-                          << std::endl; // Timestamp is now handled by MessageQueue
+                MQ_DLOG("Produced: {} Price: {:.2f} Volume: {} Timestamp: (handled by MessageQueue)",
+                        data.symbol,
+                        data.price,
+                        data.volume);
                 counter++;
                 messages_produced++;
             } else {
-                // std::cout << "Queue full, waiting..." << std::endl;
+                // MQ_WLOG("Queue full, waiting...");
             }
 
             // 减少睡眠时间以获得更高频率的数据产生
             std::this_thread::sleep_for(std::chrono::microseconds(1000)); // 1ms instead of 100ms
         }
     } catch (const std::exception &e) {
-        std::cerr << "Error: " << e.what() << std::endl;
+        MQ_ELOG("Error: {}", e.what());
+        fmtlog::poll(true); // Flush logs before exit
         return 1;
     }
 
+    fmtlog::poll(true); // Flush logs before exit
     return 0;
 }

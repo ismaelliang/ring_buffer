@@ -137,11 +137,33 @@
 #include <unistd.h>   // Required for ftruncate, close
 #include <vector>     // Required for std::vector
 
+// Include fmtlog for high-performance logging
+#define FMTLOG_HEADER_ONLY
+#include "include/fmtlog.h"
+
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
 #include <pthread.h>
 #include <sched.h>
+
+// Define logging macros that can be overridden by the main project.
+// By default, these macros use fmtlog for high-performance logging.
+#ifndef MQ_DLOG
+#define MQ_DLOG(...) logd(__VA_ARGS__)
+#endif
+
+#ifndef MQ_ILOG
+#define MQ_ILOG(...) logi(__VA_ARGS__)
+#endif
+
+#ifndef MQ_WLOG
+#define MQ_WLOG(...) logw(__VA_ARGS__)
+#endif
+
+#ifndef MQ_ELOG
+#define MQ_ELOG(...) loge(__VA_ARGS__)
+#endif
 
 /**
  * @brief 定义不同消息类型的枚举（用户可扩展）。
@@ -202,7 +224,7 @@ class CPUAffinity {
             return false;
         }
 
-        std::cout << "Thread bound to CPU " << cpu_id << std::endl;
+        MQ_ILOG("Thread bound to CPU {}", cpu_id);
         return true;
     }
 
@@ -220,7 +242,7 @@ class CPUAffinity {
             return false;
         }
 
-        std::cout << "Set real-time priority: " << priority << std::endl;
+        MQ_ILOG("Set real-time priority: {}", priority);
         return true;
     }
 
@@ -323,11 +345,11 @@ class MmapRingBuffer {
                    bool force_recreate = false,
                    bool no_create = false)
         : name_(name), num_consumers_(num_consumers) {
-        std::cout << "MmapRingBuffer: Creating/attaching to buffer: " << name << std::endl;
-        std::cout << "  element_count: " << element_count << ", element_size: " << element_size << std::endl;
-        std::cout << "  num_consumers: " << num_consumers << std::endl;
-        std::cout << "  force_recreate: " << force_recreate << std::endl;
-        std::cout << "  no_create: " << no_create << std::endl;
+        MQ_DLOG("MmapRingBuffer: Creating/attaching to buffer: {}", name);
+        MQ_DLOG("  element_count: {}, element_size: {}", element_count, element_size);
+        MQ_DLOG("  num_consumers: {}", num_consumers);
+        MQ_DLOG("  force_recreate: {}", force_recreate);
+        MQ_DLOG("  no_create: {}", no_create);
 
         // 检查 no_create 和 force_recreate 的冲突
         if (no_create && force_recreate) {
@@ -338,7 +360,7 @@ class MmapRingBuffer {
         bool header_compatible = false;
         if (!force_recreate) {
             header_compatible = isHeaderCompatible(name_, element_count, element_size, num_consumers);
-            std::cout << "  Header compatibility check result: " << header_compatible << std::endl;
+            MQ_DLOG("  Header compatibility check result: {}", header_compatible);
         }
 
         // 在 no_create 模式下，如果共享内存不存在或不兼容，则抛出异常
@@ -347,11 +369,11 @@ class MmapRingBuffer {
                 throw std::runtime_error(std::string("no_create mode: shared memory '") + name_ +
                                          "' does not exist or is incompatible with the requested parameters");
             }
-            std::cout << "  no_create mode: using existing compatible shared memory" << std::endl;
+            MQ_DLOG("  no_create mode: using existing compatible shared memory");
         } else {
             // 如果需要强制重新创建或头部不兼容，则先删除现有共享内存
             if (force_recreate || !header_compatible) {
-                std::cout << "  Unlinking existing shared memory (if any)..." << std::endl;
+                MQ_DLOG("  Unlinking existing shared memory (if any)...");
                 shm_unlink(name_); // 忽略错误，因为共享内存可能不存在
             }
         }
@@ -361,7 +383,7 @@ class MmapRingBuffer {
         size_t header_actual_size =
             sizeof(RingBufferHeader) + (num_consumers - 1) * sizeof(RingBufferHeader::ConsumerTail);
         total_size_ = header_actual_size + element_count * element_size;
-        std::cout << "  Calculated total_size_: " << total_size_ << std::endl;
+        MQ_DLOG("  Calculated total_size_: {}", total_size_);
 
         // 创建或打开共享内存。
         if (no_create) {
@@ -374,7 +396,7 @@ class MmapRingBuffer {
         if (fd_ == -1) {
             throw std::runtime_error(std::string("shm_open failed: ") + strerror(errno));
         }
-        std::cout << "  shm_open successful, fd_: " << fd_ << std::endl;
+        MQ_DLOG("  shm_open successful, fd_: {}", fd_);
 
         // 设置共享内存大小（仅在非 no_create 模式下或新创建时）。
         if (!no_create) {
@@ -382,9 +404,9 @@ class MmapRingBuffer {
                 close(fd_);
                 throw std::runtime_error(std::string("ftruncate failed: ") + strerror(errno));
             }
-            std::cout << "  ftruncate successful, size: " << total_size_ << std::endl;
+            MQ_DLOG("  ftruncate successful, size: {}", total_size_);
         } else {
-            std::cout << "  no_create mode: skipping ftruncate, using existing size" << std::endl;
+            MQ_DLOG("  no_create mode: skipping ftruncate, using existing size");
         }
 
         // 映射内存。
@@ -393,12 +415,12 @@ class MmapRingBuffer {
             close(fd_);
             throw std::runtime_error(std::string("mmap failed: ") + strerror(errno));
         }
-        std::cout << "  mmap successful, buffer_ address: " << buffer_ << std::endl;
+        MQ_DLOG("  mmap successful, buffer_ address: {}", buffer_);
 
         // 初始化头部。
         header_ = static_cast<RingBufferHeader *>(buffer_);
         if (!no_create && header_->size == 0) { // 首次创建时初始化。
-            std::cout << "  Initializing new buffer header." << std::endl;
+            MQ_DLOG("  Initializing new buffer header.");
             header_->head.store(0, std::memory_order_relaxed);
             // 初始化所有消费者的 tail 指针
             for (uint32_t i = 0; i < num_consumers_; ++i) {
@@ -408,7 +430,7 @@ class MmapRingBuffer {
             header_->element_size = element_size;
             header_->num_consumers = num_consumers_;
         } else if (no_create) {
-            std::cout << "  no_create mode: using existing buffer header." << std::endl;
+            MQ_DLOG("  no_create mode: using existing buffer header.");
             // 在 no_create 模式下，验证现有头部信息是否匹配
             if (header_->size != element_count || header_->element_size != element_size ||
                 header_->num_consumers != num_consumers_) {
@@ -417,8 +439,8 @@ class MmapRingBuffer {
                 throw std::runtime_error("no_create mode: existing buffer header does not match requested parameters");
             }
         }
-        std::cout << "  Header initialized. header_->size: " << header_->size
-                  << ", header_->element_size: " << header_->element_size << std::endl;
+        MQ_DLOG(
+            "  Header initialized. header_->size: {}, header_->element_size: {}", header_->size, header_->element_size);
     }
 
     /**

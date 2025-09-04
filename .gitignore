@@ -1,2 +1,3 @@
 # Any directory with name start with "build"
 build*/
+log/

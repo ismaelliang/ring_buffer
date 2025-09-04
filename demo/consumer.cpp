@@ -123,6 +123,8 @@ void print_usage(const char *program_name) {
  * @return 程序的退出状态码。
  */
 int main(int argc, char *argv[]) {
+    // Initialize fmtlog
+    fmtlog::setLogLevel(fmtlog::DBG);
     std::optional<long long> total_message_count; // Use long long for potentially large counts
     uint32_t num_consumers = 1;                   // Default to 1 consumer
     uint32_t consumer_id = 0;                     // Default consumer ID
@@ -168,6 +170,11 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // Set log file with consumer ID suffix
+    std::string log_filename = "consumer_" + std::to_string(consumer_id) + ".log";
+    fmtlog::setLogFile(log_filename.c_str());
+    fmtlog::startPollingThread();
+
     if (consumer_id >= num_consumers) {
         std::cerr << "Error: consumer_id (" << consumer_id << ") must be less than num_consumers (" << num_consumers
                   << ")." << std::endl;
@@ -177,11 +184,13 @@ int main(int argc, char *argv[]) {
 
     try {
         // 绑定到CPU核心1 (消费者，与生产者分离)
-        std::cout << "Available CPU cores: " << CPUAffinity::getCPUCount() << std::endl;
+        MQ_ILOG("Available CPU cores: {}", CPUAffinity::getCPUCount());
         int target_cpu = consumer_id + 1; // Start from CPU 1, assuming producer uses CPU 0
         if (target_cpu >= CPUAffinity::getCPUCount()) {
-            std::cerr << "Error: Not enough CPU cores to bind consumer " << consumer_id << " to core " << target_cpu
-                      << ". Available cores: " << CPUAffinity::getCPUCount() << std::endl;
+            MQ_ELOG("Error: Not enough CPU cores to bind consumer {} to core {}. Available cores: {}",
+                    consumer_id,
+                    target_cpu,
+                    CPUAffinity::getCPUCount());
             return 1;
         }
         CPUAffinity::bindToCPU(target_cpu);
@@ -205,11 +214,11 @@ int main(int argc, char *argv[]) {
         int msg_count = 0;
         const int STATS_INTERVAL = 1000; // 每1000条消息打印一次统计
 
-        std::cout << "开始消费数据，使用高精度时钟测量延迟...\n" << std::endl;
+        MQ_ILOG("开始消费数据，使用高精度时钟测量延迟...");
 
         while (true) {
             if (total_message_count.has_value() && messages_consumed >= total_message_count.value()) {
-                std::cout << "Consumed " << messages_consumed << " messages. Exiting." << std::endl;
+                MQ_ILOG("Consumed {} messages. Exiting.", messages_consumed);
                 break;
             }
 
@@ -232,9 +241,12 @@ int main(int argc, char *argv[]) {
                 messages_consumed++; // Increment consumed count
 
                 // 显示接收到的数据和延迟（以微秒为单位显示更直观）
-                std::cout << "Received: " << received_data->symbol << " Price: " << std::fixed << std::setprecision(2)
-                          << received_data->price << " Volume: " << received_data->volume << " Latency: " << latency
-                          << "ns (" << std::fixed << std::setprecision(2) << latency / 1000.0 << "μs)" << std::endl;
+                MQ_DLOG("Received: {} Price: {:.2f} Volume: {} Latency: {}ns ({:.2f}μs)",
+                        received_data->symbol,
+                        received_data->price,
+                        received_data->volume,
+                        latency,
+                        latency / 1000.0);
 
                 // 定期打印统计信息
                 if (msg_count % STATS_INTERVAL == 0) {
@@ -251,9 +263,11 @@ int main(int argc, char *argv[]) {
             // 如果队列不空但当前消费者读不到（被其他消费者抢先），则继续循环
         }
     } catch (const std::exception &e) {
-        std::cerr << "Error: " << e.what() << std::endl;
+        MQ_ELOG("Error: {}", e.what());
+        fmtlog::poll(true); // Flush logs before exit
         return 1;
     }
 
+    fmtlog::poll(true); // Flush logs before exit
     return 0;
 }

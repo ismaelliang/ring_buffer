@@ -44,20 +44,23 @@ if(NOT GTest_FOUND)
     find_package(GTest REQUIRED)
 endif()
 
+# Find fmt package
+find_package(fmt CONFIG REQUIRED)
+
 # Create producer executable
 add_executable(producer demo/producer.cpp)
-target_include_directories(producer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/demo)
-target_link_libraries(producer PRIVATE ${RT_LIBRARY} Threads::Threads)
+target_include_directories(producer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/demo ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(producer PRIVATE ${RT_LIBRARY} Threads::Threads fmt::fmt)
 
 # Create consumer executable
 add_executable(consumer demo/consumer.cpp)
-target_include_directories(consumer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/demo)
-target_link_libraries(consumer PRIVATE ${RT_LIBRARY} Threads::Threads)
+target_include_directories(consumer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/demo ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(consumer PRIVATE ${RT_LIBRARY} Threads::Threads fmt::fmt)
 
 # Create check_header utility executable
 add_executable(check_header demo/check_header.cpp)
-target_include_directories(check_header PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/demo)
-target_link_libraries(check_header PRIVATE ${RT_LIBRARY} Threads::Threads)
+target_include_directories(check_header PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/demo ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(check_header PRIVATE ${RT_LIBRARY} Threads::Threads fmt::fmt)
 
 
 # Enable testing
@@ -65,8 +68,8 @@ enable_testing()
 
 # Create test executable with Google Test
 add_executable(ringbuffer_tests test/test_ringbuffer.cpp)
-target_include_directories(ringbuffer_tests PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/demo)
-target_link_libraries(ringbuffer_tests PRIVATE ${RT_LIBRARY} Threads::Threads GTest::gtest GTest::gtest_main)
+target_include_directories(ringbuffer_tests PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/demo ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(ringbuffer_tests PRIVATE ${RT_LIBRARY} Threads::Threads GTest::gtest GTest::gtest_main fmt::fmt)
 set_target_properties(ringbuffer_tests PROPERTIES 
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/test
     RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/test
@@ -75,8 +78,8 @@ set_target_properties(ringbuffer_tests PROPERTIES
 
 # Create no_create test executable with Google Test
 add_executable(no_create_tests test/test_no_create.cpp)
-target_include_directories(no_create_tests PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/demo)
-target_link_libraries(no_create_tests PRIVATE ${RT_LIBRARY} Threads::Threads GTest::gtest GTest::gtest_main)
+target_include_directories(no_create_tests PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/demo ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(no_create_tests PRIVATE ${RT_LIBRARY} Threads::Threads GTest::gtest GTest::gtest_main fmt::fmt)
 set_target_properties(no_create_tests PROPERTIES 
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/test
     RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/test
