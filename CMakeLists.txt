@@ -33,3 +33,8 @@ target_link_libraries(producer PRIVATE ${RT_LIBRARY} Threads::Threads)
 add_executable(consumer demo/consumer.cpp)
 target_include_directories(consumer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/demo)
 target_link_libraries(consumer PRIVATE ${RT_LIBRARY} Threads::Threads)
+
+# Create check_header utility executable
+add_executable(check_header demo/check_header.cpp)
+target_include_directories(check_header PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/demo)
+target_link_libraries(check_header PRIVATE ${RT_LIBRARY} Threads::Threads)
