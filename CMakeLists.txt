@@ -25,6 +25,12 @@ endif()
 # Enable Link Time Optimization (LTO) for better performance
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 
+# Set output directories
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_PROD ${CMAKE_BINARY_DIR}/bin)
+
 # Add RT library for shared memory operations
 find_library(RT_LIBRARY rt REQUIRED)
 
@@ -53,6 +59,7 @@ add_executable(check_header demo/check_header.cpp)
 target_include_directories(check_header PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/demo)
 target_link_libraries(check_header PRIVATE ${RT_LIBRARY} Threads::Threads)
 
+
 # Enable testing
 enable_testing()
 
@@ -60,6 +67,22 @@ enable_testing()
 add_executable(ringbuffer_tests test/test_ringbuffer.cpp)
 target_include_directories(ringbuffer_tests PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/demo)
 target_link_libraries(ringbuffer_tests PRIVATE ${RT_LIBRARY} Threads::Threads GTest::gtest GTest::gtest_main)
+set_target_properties(ringbuffer_tests PROPERTIES 
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/test
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/test
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/test
+    RUNTIME_OUTPUT_DIRECTORY_PROD ${CMAKE_BINARY_DIR}/test)
 
-# Add the test
+# Create no_create test executable with Google Test
+add_executable(no_create_tests test/test_no_create.cpp)
+target_include_directories(no_create_tests PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/demo)
+target_link_libraries(no_create_tests PRIVATE ${RT_LIBRARY} Threads::Threads GTest::gtest GTest::gtest_main)
+set_target_properties(no_create_tests PROPERTIES 
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/test
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/test
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/test
+    RUNTIME_OUTPUT_DIRECTORY_PROD ${CMAKE_BINARY_DIR}/test)
+
+# Add the tests
 add_test(NAME RingBufferTests COMMAND ringbuffer_tests)
+add_test(NAME NoCreateTests COMMAND no_create_tests)
