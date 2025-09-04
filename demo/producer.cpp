@@ -21,9 +21,12 @@
  * @param program_name 程序的名称。
  */
 void print_usage(const char *program_name) {
-  std::cerr << "Usage: " << program_name << " [-n <count>]" << std::endl;
+  std::cerr << "Usage: " << program_name << " [-n <count>] [-c <num_consumers>]"
+            << std::endl;
   std::cerr << "  -n, --num    Total number of messages to produce (default: "
                "infinite)"
+            << std::endl;
+  std::cerr << "  -c, --consumers Total number of consumers (default: 1)"
             << std::endl;
 }
 
@@ -39,7 +42,8 @@ void print_usage(const char *program_name) {
  */
 int main(int argc, char *argv[]) {
   std::optional<long long>
-      total_message_count; // Use long long for potentially large counts
+      total_message_count;    // Use long long for potentially large counts
+  uint32_t num_consumers = 1; // Default to 1 consumer
 
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
@@ -48,6 +52,19 @@ int main(int argc, char *argv[]) {
         total_message_count = std::stoll(argv[++i]);
       } else {
         std::cerr << "Error: -n/--num requires an argument." << std::endl;
+        print_usage(argv[0]);
+        return 1;
+      }
+    } else if (arg == "-c" || arg == "--consumers") {
+      if (i + 1 < argc) {
+        num_consumers = std::stoul(argv[++i]);
+        if (num_consumers == 0) {
+          std::cerr << "Error: num_consumers cannot be zero." << std::endl;
+          print_usage(argv[0]);
+          return 1;
+        }
+      } else {
+        std::cerr << "Error: -c/--consumers requires an argument." << std::endl;
         print_usage(argv[0]);
         return 1;
       }
@@ -62,8 +79,6 @@ int main(int argc, char *argv[]) {
   }
 
   try {
-    // Explicitly unlink shared memory to ensure a clean start, especially
-    // during development. Ignore error if it doesn't exist.
     shm_unlink("/market_data_queue");
 
     // 绑定到CPU核心0 (生产者)
@@ -77,7 +92,7 @@ int main(int argc, char *argv[]) {
     // Create message queue
     // Name, capacity (number of messages), max_payload_size
     MessageQueue queue("/market_data_queue", 1024, sizeof(MarketData),
-                       3); // Added num_consumers as 3 to demonstrate SPMC
+                       num_consumers); // Use the parsed num_consumers
 
     // Simulate market data feed
     MarketData data;
@@ -105,7 +120,7 @@ int main(int argc, char *argv[]) {
         counter++;
         messages_produced++;
       } else {
-        std::cout << "Queue full, waiting..." << std::endl;
+        // std::cout << "Queue full, waiting..." << std::endl;
       }
 
       // 减少睡眠时间以获得更高频率的数据产生
