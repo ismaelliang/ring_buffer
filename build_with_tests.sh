@@ -1,31 +1,49 @@
 #!/bin/bash
 
-# Build script for ringbuffer project with Google Test integration via vcpkg manifest mode
+# 构建脚本，包含Google Test 的测试用例
+# 依赖项通过 vcpkg manifest 模式 管理
 
-set -e  # Exit on any error
+set -e  # 如果任何命令失败，则退出
 
-echo "=== Building RingBuffer Project with Google Test ==="
+echo "=== Building RingBuffer Project with vcpkg and Google Test ==="
 
-# Create build directory
+# 检查 VCPKG_ROOT 是否设置
+if [ -z "$VCPKG_ROOT" ]; then
+    echo "Warning: VCPKG_ROOT environment variable is not set."
+    echo "Please set VCPKG_ROOT to your vcpkg installation directory."
+    echo "Example: export VCPKG_ROOT=/path/to/vcpkg"
+    exit 1
+fi
+
+echo "Using vcpkg from: $VCPKG_ROOT"
+
+# 通过 vcpkg 安装依赖
+echo "Installing dependencies via vcpkg..."
+$VCPKG_ROOT/vcpkg install
+
+# 创建构建目录
+echo "Creating build directory..."
 mkdir -p build
 cd build
 
-# Configure with CMake (vcpkg will automatically install dependencies from vcpkg.json)
-echo "Configuring project with CMake..."
-if [ -n "$VCPKG_ROOT" ] && [ -f "$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" ]; then
-    echo "Using vcpkg toolchain: $VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
-    cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
-else
-    echo "Warning: vcpkg toolchain not found, using system packages..."
-    cmake .. -DCMAKE_BUILD_TYPE=Debug
-fi
+# 配置项目 CMake
+echo "Configuring project with cmake..."
+cmake .. -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
+         -DCMAKE_BUILD_TYPE=Release
 
-# Build the project
+# 构建项目
 echo "Building project..."
-cmake --build .
+cmake --build . --config Release
 
-# Run tests
+# 跑测试
 echo "Running tests..."
-ctest --output-on-failure
+ctest --output-on-failure --build-config Release
 
+echo ""
 echo "=== Build and Test Complete ==="
+echo "Executables are available in:"
+echo "  - bin/producer"
+echo "  - bin/consumer" 
+echo "  - bin/check_header"
+echo "  - test/ringbuffer_tests"
+echo "  - test/no_create_tests"

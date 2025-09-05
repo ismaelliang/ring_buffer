@@ -84,8 +84,8 @@ struct LatencyStats {
      *
      * 将最小、最大、平均、P50、P95、P99延迟以及样本数量输出到控制台。
      */
-    void printStats() const {
-        std::cout << "\n=== 延迟统计 ===\n"
+    void printStats(const uint32_t consumer_id) const {
+        std::cout << "\n=== 延迟统计 (consumer_id: " << consumer_id << ") ===\n"
                   << "最小延迟: " << min_latency << "ns (" << min_latency / 1000.0 << "μs)\n"
                   << "最大延迟: " << max_latency << "ns (" << max_latency / 1000.0 << "μs)\n"
                   << "平均延迟: " << getAverageLatency() << "ns (" << getAverageLatency() / 1000.0 << "μs)\n"
@@ -250,7 +250,7 @@ int main(int argc, char *argv[]) {
 
                 // 定期打印统计信息
                 if (msg_count % STATS_INTERVAL == 0) {
-                    stats.printStats();
+                    stats.printStats(consumer_id);
                     stats.reset(); // Reset statistics after printing
                 }
             } else if (queue.empty(consumer_id)) {
